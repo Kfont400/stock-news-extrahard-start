@@ -2,6 +2,7 @@ import requests
 from datetime import date
 from datetime import timedelta
 import os
+import smtplib
 
 
 ## STEP 1: Use https://www.alphavantage.co
@@ -66,19 +67,40 @@ class News:
             "apiKey": self.news_api_key,
             "q": self.COMPANY_NAME,
             "sortBy": "publishedAt",
-            "from": str(date.today() - timedelta(days=5)),
+            "from": str(date.today() - timedelta(days=1)),
         }
 
     def get_news(self):
         r = requests.get(self.url, self.news_params)
-        return r.json()
+        return [
+            r.json()["articles"][0]["description"],
+            r.json()["articles"][0]["title"],
+        ]
 
 
 ## STEP 3: Use https://www.twilio.com
 # Send a seperate message with the percentage change and each article's title and description to your phone number.
 class Alert:
     def __init__(self) -> None:
-        pass
+        self.account_sid = os.environ.get("twilio_sid")
+        self.auth_token = os.environ.get("twilio_auth_token")
+        self.client = Client(self.account_sid, self.auth_token)
+        self.my_email = "kai2flie@gmail.com"
+        self.password = os.environ.get("app_password2")
+
+    def sendMessage(self, subject, message):
+        with smtplib.SMTP("smtp.gmail.com", port=587) as connection:
+            connection.starttls()
+            connection.login(user=self.my_email, password=self.password)
+            connection.sendmail(
+                from_addr=self.my_email,
+                to_addrs=self.my_email,
+                msg=f"Subject:{subject}\n\n{message}",
+            )
+        # message = self.client.messages.create(
+        #     from_="+18447524823", body="It's gonna rain today ☔️", to="+18777804236"
+        # )
+        return message.status
 
 
 # Optional: Format the SMS message like this:
@@ -97,7 +119,11 @@ Brief: We at Insider Monkey have gone over 821 13F filings that hedge funds and 
 
 d = Data()
 news = News()
-data = d.get_data("daily")
+alert = Alert()
+# data = d.get_data("daily")
 
-if d.calculate_pct(data) == True:
-    print(news.get_news())
+# if d.calculate_pct(data) == True:
+#     print(news.get_news())
+
+l = news.get_news()
+alert.sendMessage(message=l[0], subject=l[1])
